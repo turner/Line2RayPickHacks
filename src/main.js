@@ -203,24 +203,24 @@ function animate() {
 
 	raycaster.setFromCamera( pointer, camera );
 
-	const intersectsLine = raycaster.intersectObject( line );
+	const lineIntersections = raycaster.intersectObject( line );
 
-	if ( intersectsLine.length > 0 ) {
+	if ( lineIntersections.length > 0 ) {
 		// Show feedback for line
 		sphereInter.visible = true;
 		sphereOnLine.visible = true;
 
-		sphereInter.position.copy( intersectsLine[ 0 ].point );
-		sphereOnLine.position.copy( intersectsLine[ 0 ].pointOnLine );
+		sphereInter.position.copy( lineIntersections[ 0 ].point );
+		sphereOnLine.position.copy( lineIntersections[ 0 ].pointOnLine );
 
-		const index = intersectsLine[ 0 ].faceIndex;
+		const index = lineIntersections[ 0 ].faceIndex;
 		const colors = line.geometry.getAttribute( 'instanceColorStart' );
 		color.fromBufferAttribute( colors, index );
 		sphereInter.material.color.copy( color ).offsetHSL( 0.3, 0, 0 );
 		sphereOnLine.material.color.copy( color ).offsetHSL( 0.7, 0, 0 );
 
 		// Calculate parametric coordinate for the spiral
-		const t = findClosestT(spline, intersectsLine[0].pointOnLine, intersectsLine[0].faceIndex, line.geometry.getAttribute('instanceStart').count);
+		const t = findClosestT(spline, lineIntersections[0].pointOnLine, lineIntersections[0].faceIndex, line.geometry.getAttribute('instanceStart').count);
 		console.log('Segment index (t):', t);
 
 		renderer.domElement.style.cursor = 'crosshair';
