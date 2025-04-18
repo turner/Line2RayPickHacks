@@ -14,12 +14,12 @@ let line;
 let thresholdLine;
 let sphereInter;
 let sphereOnLine;
-let spline;
 let controls;
 let raycaster
 let lineMaterial
 let thresholdLineMaterial
 let guiParameters
+let mySpline
 
 const pointer = new THREE.Vector2();
 
@@ -48,31 +48,8 @@ function initializeApp(container) {
 	controls.minDistance = 10;
 	controls.maxDistance = 500;
 
-	sphereInter = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0x003153, depthTest: false } ) );
-	sphereInter.visible = false;
-	sphereInter.renderOrder = 10;
-	scene.add( sphereInter );
-
-	sphereOnLine = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false } ) );
-	sphereOnLine.visible = false;
-	sphereOnLine.renderOrder = 10;
-	scene.add( sphereOnLine );
-
-	const xyz = new THREE.Vector3();
-	const rgbList = [];
-	const xyzList = [];
-
-	// Generate spiral points
-	const knots = generateSpiralPoints( 48 );
-	spline = new THREE.CatmullRomCurve3( knots );
-	const divisions = Math.round( 16 * knots.length );
-	for (let i = 0; i < divisions; i++) {
-		const t = i/divisions;
-		spline.getPoint( t, xyz );
-		xyzList.push( xyz.x, xyz.y, xyz.z );
-		color.setHSL( t, 1.0, 0.5, THREE.SRGBColorSpace );
-		rgbList.push( color.r, color.g, color.b );
-	}
+	const { spline, rgbList, xyzList } = createSplineFromKnots(generateSpiralPoints, 48);
+	mySpline = spline;
 
 	// line
 	lineMaterial = new LineMaterial( {
@@ -84,8 +61,8 @@ function initializeApp(container) {
 	} );
 
 	const lineGeometry = new LineGeometry();
-	lineGeometry.setPositions( xyzList );
-	lineGeometry.setColors( rgbList );
+	lineGeometry.setPositions(xyzList);
+	lineGeometry.setColors(rgbList);
 
 	line = new Line2(lineGeometry, lineMaterial);
 	line.computeLineDistances();
@@ -112,8 +89,19 @@ function initializeApp(container) {
 	scene.add(thresholdLine);
 
 	document.addEventListener( 'pointermove', onPointerMove );
+
 	window.addEventListener( 'resize', onWindowResize );
 	onWindowResize();
+
+	sphereInter = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0xff0000, depthTest: false } ) );
+	sphereInter.visible = false;
+	sphereInter.renderOrder = 10;
+	scene.add( sphereInter );
+
+	sphereOnLine = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false } ) );
+	sphereOnLine.visible = false;
+	sphereOnLine.renderOrder = 10;
+	scene.add( sphereOnLine );
 
 	raycaster = new THREE.Raycaster();
 	raycaster.params.Line2 = {};
@@ -132,6 +120,26 @@ function initializeApp(container) {
 
 }
 
+function createSplineFromKnots(knotGenerator, numKnots) {
+	const xyz = new THREE.Vector3();
+	const rgbList = [];
+	const xyzList = [];
+
+	const knots = knotGenerator(numKnots);
+	const spline = new THREE.CatmullRomCurve3(knots);
+	const divisions = Math.round(16 * knots.length);
+	
+	for (let i = 0; i < divisions; i++) {
+		const t = i/divisions;
+		spline.getPoint(t, xyz);
+		xyzList.push(xyz.x, xyz.y, xyz.z);
+		color.setHSL(t, 1.0, 0.5, THREE.SRGBColorSpace);
+		rgbList.push(color.r, color.g, color.b);
+	}
+
+	return { spline, rgbList, xyzList };
+}
+
 function animate() {
 
 	// Update threshold line to match main line position
@@ -142,7 +150,7 @@ function animate() {
 
 	const lineIntersections = raycaster.intersectObject( line );
 
-	if ( lineIntersections.length > 0 ) {
+	if (lineIntersections.length > 0) {
 		
 		// Show feedback for threshold
 		sphereInter.visible = true;
@@ -159,7 +167,7 @@ function animate() {
 		sphereOnLine.material.color.copy( color ).offsetHSL( 0.7, 0, 0 );
 
 		// Calculate parametric coordinate for the spiral
-		const t = findClosestT(spline, lineIntersections[0].pointOnLine, lineIntersections[0].faceIndex, line.geometry.getAttribute('instanceStart').count);
+		const t = findClosestT(mySpline, lineIntersections[0].pointOnLine, lineIntersections[0].faceIndex, line.geometry.getAttribute('instanceStart').count);
 		console.log('Segment index (t):', t);
 
 		renderer.domElement.style.cursor = 'crosshair';
