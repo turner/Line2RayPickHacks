@@ -16,47 +16,20 @@ let sphereInter;
 let sphereOnLine;
 let spline;
 let controls;
-let pointer = new THREE.Vector2();
-let raycaster = new THREE.Raycaster();
+let raycaster
 let lineMaterial
 let thresholdLineMaterial
 let guiParameters
+
+const pointer = new THREE.Vector2();
+
 const color = new THREE.Color();
 
 const BACKGROUND_COLOR = 0xCACACA;
 
-// Run initialization when the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', () => initializeApp(document.getElementById('container')))
 
 function initializeApp(container) {
-
-	raycaster.params.Line2 = {};
-	raycaster.params.Line2.threshold = 0;
-
-	lineMaterial = new LineMaterial( {
-
-		color: 0xffffff,
-		linewidth: 1, // in world units with size attenuation, pixels otherwise
-		worldUnits: true,
-		vertexColors: true,
-
-		alphaToCoverage: true,
-
-	} );
-
-	thresholdLineMaterial = new LineMaterial( {
-
-		color: 0xffffff,
-		linewidth: lineMaterial.linewidth, // in world units with size attenuation, pixels otherwise
-		worldUnits: true,
-		// vertexColors: true,
-		transparent: true,
-		opacity: 0.2,
-		depthTest: false,
-		visible: false,
-
-	} );
-
 
 	scene = new THREE.Scene();
 	scene.background = new THREE.Color(BACKGROUND_COLOR);
@@ -64,7 +37,7 @@ function initializeApp(container) {
 	renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setSize( window.innerWidth, window.innerHeight );
-	renderer.setClearColor( BACKGROUND_COLOR, 1.0 );
+	renderer.setClearColor( scene.background, 1.0 );
 	renderer.setAnimationLoop( animate );
 	document.body.appendChild( renderer.domElement );
 
@@ -75,15 +48,12 @@ function initializeApp(container) {
 	controls.minDistance = 10;
 	controls.maxDistance = 500;
 
-	const sphereInterMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, depthTest: false } );
-	const sphereOnLineMaterial = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false } );
-
-	sphereInter = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), sphereInterMaterial );
+	sphereInter = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0x003153, depthTest: false } ) );
 	sphereInter.visible = false;
 	sphereInter.renderOrder = 10;
 	scene.add( sphereInter );
 
-	sphereOnLine = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), sphereOnLineMaterial );
+	sphereOnLine = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false } ) );
 	sphereOnLine.visible = false;
 	sphereOnLine.renderOrder = 10;
 	scene.add( sphereOnLine );
@@ -97,37 +67,57 @@ function initializeApp(container) {
 	spline = new THREE.CatmullRomCurve3( knots );
 	const divisions = Math.round( 16 * knots.length );
 	for (let i = 0; i < divisions; i++) {
-
 		const t = i/divisions;
 		spline.getPoint( t, xyz );
-
 		xyzList.push( xyz.x, xyz.y, xyz.z );
-
 		color.setHSL( t, 1.0, 0.5, THREE.SRGBColorSpace );
 		rgbList.push( color.r, color.g, color.b );
-
 	}
+
+	// line
+	lineMaterial = new LineMaterial( {
+		color: 0xffffff,
+		linewidth: 1, // in world units with size attenuation, pixels otherwise
+		worldUnits: true,
+		vertexColors: true,
+		alphaToCoverage: true,
+	} );
 
 	const lineGeometry = new LineGeometry();
 	lineGeometry.setPositions( xyzList );
 	lineGeometry.setColors( rgbList );
 
-	line = new Line2( lineGeometry, lineMaterial );
+	line = new Line2(lineGeometry, lineMaterial);
 	line.computeLineDistances();
-	line.scale.set( 1, 1, 1 );
-	scene.add( line );
+	line.scale.set(1, 1, 1);
+	scene.add(line);
 
-	// Create threshold line
+	// threshold line
+	thresholdLineMaterial = new LineMaterial( {
+		color: 0xffffff,
+		linewidth: lineMaterial.linewidth, // in world units with size attenuation, pixels otherwise
+		worldUnits: true,
+		// vertexColors: true,
+		transparent: true,
+		opacity: 0.2,
+		depthTest: false,
+		visible: false,
+	} );
+
 	const thresholdLineGeometry = new LineGeometry();
 	thresholdLineGeometry.setPositions( xyzList );
-	thresholdLine = new Line2( thresholdLineGeometry, thresholdLineMaterial );
+	thresholdLine = new Line2(thresholdLineGeometry, thresholdLineMaterial);
 	thresholdLine.computeLineDistances();
-	thresholdLine.scale.set( 1, 1, 1 );
-	scene.add( thresholdLine );
+	thresholdLine.scale.set(1, 1, 1);
+	scene.add(thresholdLine);
 
 	document.addEventListener( 'pointermove', onPointerMove );
 	window.addEventListener( 'resize', onWindowResize );
 	onWindowResize();
+
+	raycaster = new THREE.Raycaster();
+	raycaster.params.Line2 = {};
+	raycaster.params.Line2.threshold = 0;
 
 	guiParameters =
 		{
@@ -153,17 +143,19 @@ function animate() {
 	const lineIntersections = raycaster.intersectObject( line );
 
 	if ( lineIntersections.length > 0 ) {
-		// Show feedback for line
+		
+		// Show feedback for threshold
 		sphereInter.visible = true;
-		sphereOnLine.visible = true;
-
 		sphereInter.position.copy( lineIntersections[ 0 ].point );
-		sphereOnLine.position.copy( lineIntersections[ 0 ].pointOnLine );
-
 		const index = lineIntersections[ 0 ].faceIndex;
 		const colors = line.geometry.getAttribute( 'instanceColorStart' );
 		color.fromBufferAttribute( colors, index );
-		sphereInter.material.color.copy( color ).offsetHSL( 0.3, 0, 0 );
+		// sphereInter.material.color.copy( color ).offsetHSL( 0.3, 0, 0 );
+		// sphereInter.material.color.copy( color )
+
+		// Show feedback for line intersection
+		sphereOnLine.visible = true;
+		sphereOnLine.position.copy( lineIntersections[ 0 ].pointOnLine );
 		sphereOnLine.material.color.copy( color ).offsetHSL( 0.7, 0, 0 );
 
 		// Calculate parametric coordinate for the spiral
