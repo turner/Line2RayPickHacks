@@ -6,224 +6,253 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { initGui } from './utils.js';
 import './main.css'
 
-let gui
-let camera;
-let scene;
-let renderer;
-let line;
-let thresholdLine;
-let sphereInter;
-let sphereOnLine;
-let controls;
-let raycaster
-let lineMaterial
-let thresholdLineMaterial
-let guiParameters
-let mySpline
-
-const pointer = new THREE.Vector2();
-
-const color = new THREE.Color();
-
 const BACKGROUND_COLOR = 0xCACACA;
 
-document.addEventListener('DOMContentLoaded', () => initializeApp(document.getElementById('container')))
+class SceneManager {
+	constructor(container) {
+		this.scene = new THREE.Scene();
+		this.scene.background = new THREE.Color(BACKGROUND_COLOR);
+		
+		this.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 1000);
+		this.camera.position.set(0, 0, 60);
+		
+		this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+		this.setupRenderer(container);
+		
+		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+		this.setupControls();
+		
+		this.pointer = new THREE.Vector2();
+		this.raycaster = new THREE.Raycaster();
+		this.setupRaycaster();
+		
+		this.color = new THREE.Color();
+		
+		this.setupScene();
+		this.setupEventListeners();
+	}
 
-function initializeApp(container) {
+	setupRenderer(container) {
+		this.renderer.setPixelRatio(window.devicePixelRatio);
+		this.renderer.setSize(window.innerWidth, window.innerHeight);
+		this.renderer.setClearColor(this.scene.background, 1.0);
+		this.renderer.setAnimationLoop(() => this.animate());
+		container.appendChild(this.renderer.domElement);
+	}
 
-	scene = new THREE.Scene();
-	scene.background = new THREE.Color(BACKGROUND_COLOR);
+	setupControls() {
+		this.controls.minDistance = 10;
+		this.controls.maxDistance = 500;
+	}
 
-	renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
-	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setSize( window.innerWidth, window.innerHeight );
-	renderer.setClearColor( scene.background, 1.0 );
-	renderer.setAnimationLoop( animate );
-	document.body.appendChild( renderer.domElement );
+	setupRaycaster() {
+		this.raycaster.params.Line2 = {};
+		this.raycaster.params.Line2.threshold = 0;
+	}
 
-	camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 1000 );
-	camera.position.set( 0, 0, 60 );
+	setupScene() {
+		const { spline, rgbList, xyzList } = this.createSplineFromKnots(this.generateSpiralPoints, 48);
+		this.spline = spline;
+		
+		this.setupLines(xyzList, rgbList);
+		this.setupIntersectionSpheres();
+		this.setupGui();
+	}
 
-	controls = new OrbitControls( camera, renderer.domElement );
-	controls.minDistance = 10;
-	controls.maxDistance = 500;
+	setupLines(xyzList, rgbList) {
+		// Setup main line
+		this.lineMaterial = new LineMaterial({
+			color: 0xffffff,
+			linewidth: 1,
+			worldUnits: true,
+			vertexColors: true,
+			alphaToCoverage: true,
+		});
 
-	const { spline, rgbList, xyzList } = createSplineFromKnots(generateSpiralPoints, 48);
-	mySpline = spline;
+		const lineGeometry = new LineGeometry();
+		lineGeometry.setPositions(xyzList);
+		lineGeometry.setColors(rgbList);
 
-	// line
-	lineMaterial = new LineMaterial( {
-		color: 0xffffff,
-		linewidth: 1, // in world units with size attenuation, pixels otherwise
-		worldUnits: true,
-		vertexColors: true,
-		alphaToCoverage: true,
-	} );
+		this.line = new Line2(lineGeometry, this.lineMaterial);
+		this.line.computeLineDistances();
+		this.line.scale.set(1, 1, 1);
+		this.scene.add(this.line);
 
-	const lineGeometry = new LineGeometry();
-	lineGeometry.setPositions(xyzList);
-	lineGeometry.setColors(rgbList);
+		// Setup threshold line
+		this.setupThresholdLine(xyzList);
+	}
 
-	line = new Line2(lineGeometry, lineMaterial);
-	line.computeLineDistances();
-	line.scale.set(1, 1, 1);
-	scene.add(line);
+	setupThresholdLine(xyzList) {
+		this.thresholdLineMaterial = new LineMaterial({
+			color: 0xffffff,
+			linewidth: this.lineMaterial.linewidth,
+			worldUnits: true,
+			transparent: true,
+			opacity: 0.2,
+			depthTest: false,
+			visible: false,
+		});
 
-	// threshold line
-	thresholdLineMaterial = new LineMaterial( {
-		color: 0xffffff,
-		linewidth: lineMaterial.linewidth, // in world units with size attenuation, pixels otherwise
-		worldUnits: true,
-		// vertexColors: true,
-		transparent: true,
-		opacity: 0.2,
-		depthTest: false,
-		visible: false,
-	} );
+		const thresholdLineGeometry = new LineGeometry();
+		thresholdLineGeometry.setPositions(xyzList);
+		this.thresholdLine = new Line2(thresholdLineGeometry, this.thresholdLineMaterial);
+		this.thresholdLine.computeLineDistances();
+		this.thresholdLine.scale.set(1, 1, 1);
+		this.scene.add(this.thresholdLine);
+	}
 
-	const thresholdLineGeometry = new LineGeometry();
-	thresholdLineGeometry.setPositions( xyzList );
-	thresholdLine = new Line2(thresholdLineGeometry, thresholdLineMaterial);
-	thresholdLine.computeLineDistances();
-	thresholdLine.scale.set(1, 1, 1);
-	scene.add(thresholdLine);
+	setupIntersectionSpheres() {
+		this.sphereInter = this.createSphere(0xff0000);
+		this.sphereOnLine = this.createSphere(0x00ff00);
+	}
 
-	document.addEventListener( 'pointermove', onPointerMove );
+	createSphere(color) {
+		const sphere = new THREE.Mesh(
+			new THREE.SphereGeometry(0.25, 8, 4),
+			new THREE.MeshBasicMaterial({ color, depthTest: false })
+		);
+		sphere.visible = false;
+		sphere.renderOrder = 10;
+		this.scene.add(sphere);
+		return sphere;
+	}
 
-	window.addEventListener( 'resize', onWindowResize );
-	onWindowResize();
-
-	sphereInter = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0xff0000, depthTest: false } ) );
-	sphereInter.visible = false;
-	sphereInter.renderOrder = 10;
-	scene.add( sphereInter );
-
-	sphereOnLine = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false } ) );
-	sphereOnLine.visible = false;
-	sphereOnLine.renderOrder = 10;
-	scene.add( sphereOnLine );
-
-	raycaster = new THREE.Raycaster();
-	raycaster.params.Line2 = {};
-	raycaster.params.Line2.threshold = 0;
-
-	guiParameters =
-		{
-			'world units': lineMaterial.worldUnits,
-			'visualize threshold': thresholdLineMaterial.visible,
-			'width': lineMaterial.linewidth,
-			'alphaToCoverage': lineMaterial.alphaToCoverage,
-			'threshold': raycaster.params.Line2.threshold
+	setupGui() {
+		const guiParameters = {
+			'world units': this.lineMaterial.worldUnits,
+			'visualize threshold': this.thresholdLineMaterial.visible,
+			'width': this.lineMaterial.linewidth,
+			'alphaToCoverage': this.lineMaterial.alphaToCoverage,
+			'threshold': this.raycaster.params.Line2.threshold
 		};
 
-	gui = initGui(guiParameters, lineMaterial, thresholdLineMaterial, raycaster);
-
-}
-
-function createSplineFromKnots(knotGenerator, numKnots) {
-	const xyz = new THREE.Vector3();
-	const rgbList = [];
-	const xyzList = [];
-
-	const knots = knotGenerator(numKnots);
-	const spline = new THREE.CatmullRomCurve3(knots);
-	const divisions = Math.round(16 * knots.length);
-	
-	for (let i = 0; i < divisions; i++) {
-		const t = i/divisions;
-		spline.getPoint(t, xyz);
-		xyzList.push(xyz.x, xyz.y, xyz.z);
-		color.setHSL(t, 1.0, 0.5, THREE.SRGBColorSpace);
-		rgbList.push(color.r, color.g, color.b);
+		this.gui = initGui(guiParameters, this.lineMaterial, this.thresholdLineMaterial, this.raycaster);
 	}
 
-	return { spline, rgbList, xyzList };
-}
+	setupEventListeners() {
+		document.addEventListener('pointermove', (event) => this.onPointerMove(event));
+		window.addEventListener('resize', () => this.onWindowResize());
+	}
 
-function animate() {
+	animate() {
+		// Update threshold line to match main line position
+		this.thresholdLine.position.copy(this.line.position);
+		this.thresholdLine.quaternion.copy(this.line.quaternion);
 
-	// Update threshold line to match main line position
-	thresholdLine.position.copy( line.position );
-	thresholdLine.quaternion.copy( line.quaternion );
+		this.raycaster.setFromCamera(this.pointer, this.camera);
+		const lineIntersections = this.raycaster.intersectObject(this.line);
 
-	raycaster.setFromCamera( pointer, camera );
+		if (lineIntersections.length > 0) {
+			this.handleIntersection(lineIntersections[0]);
+		} else {
+			this.clearIntersectionFeedback();
+		}
 
-	const lineIntersections = raycaster.intersectObject( line );
+		this.renderer.render(this.scene, this.camera);
+	}
 
-	if (lineIntersections.length > 0) {
-		
+	handleIntersection(intersection) {
 		// Show feedback for threshold
-		sphereInter.visible = true;
-		sphereInter.position.copy( lineIntersections[ 0 ].point );
-		const index = lineIntersections[ 0 ].faceIndex;
-		const colors = line.geometry.getAttribute( 'instanceColorStart' );
-		color.fromBufferAttribute( colors, index );
-		// sphereInter.material.color.copy( color ).offsetHSL( 0.3, 0, 0 );
-		// sphereInter.material.color.copy( color )
+		this.sphereInter.visible = true;
+		this.sphereInter.position.copy(intersection.point);
+		
+		const index = intersection.faceIndex;
+		const colors = this.line.geometry.getAttribute('instanceColorStart');
+		this.color.fromBufferAttribute(colors, index);
 
 		// Show feedback for line intersection
-		sphereOnLine.visible = true;
-		sphereOnLine.position.copy( lineIntersections[ 0 ].pointOnLine );
-		sphereOnLine.material.color.copy( color ).offsetHSL( 0.7, 0, 0 );
+		this.sphereOnLine.visible = true;
+		this.sphereOnLine.position.copy(intersection.pointOnLine);
+		this.sphereOnLine.material.color.copy(this.color).offsetHSL(0.7, 0, 0);
 
 		// Calculate parametric coordinate for the spiral
-		const t = findClosestT(mySpline, lineIntersections[0].pointOnLine, lineIntersections[0].faceIndex, line.geometry.getAttribute('instanceStart').count);
+		const t = this.findClosestT(
+			this.spline,
+			intersection.pointOnLine,
+			intersection.faceIndex,
+			this.line.geometry.getAttribute('instanceStart').count
+		);
 		console.log('Segment index (t):', t);
 
-		renderer.domElement.style.cursor = 'crosshair';
-	} else {
-		sphereInter.visible = false;
-		sphereOnLine.visible = false;
-		renderer.domElement.style.cursor = '';
+		this.renderer.domElement.style.cursor = 'crosshair';
 	}
 
-	renderer.render( scene, camera );
-}
-
-function generateSpiralPoints( limit ) {
-	const points = [];
-	for (let i = -limit; i < limit; i++) {
-		const t = i / 3;
-		points.push(new THREE.Vector3(t * Math.sin(2 * t), t, t * Math.cos(2 * t)));
+	clearIntersectionFeedback() {
+		this.sphereInter.visible = false;
+		this.sphereOnLine.visible = false;
+		this.renderer.domElement.style.cursor = '';
 	}
-	return points;
-}
 
-function findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
-	// Convert segment index to parameter range
-	const segmentSize = 1 / totalSegments;
-	const left = segmentIndex * segmentSize;
-	const right = (segmentIndex + 1) * segmentSize;
+	onWindowResize() {
+		this.camera.aspect = window.innerWidth / window.innerHeight;
+		this.camera.updateProjectionMatrix();
+		this.renderer.setSize(window.innerWidth, window.innerHeight);
+	}
 
-	// Do a local search within this segment
-	let iterations = 0;
-	const maxIterations = 16;
-	let bestT = left;
-	let bestDist = spline.getPoint(left).distanceTo(targetPoint);
+	onPointerMove(event) {
+		this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+		this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+	}
 
-	// Sample points within the segment to find closest
-	const samples = 10;
-	for (let i = 0; i <= samples; i++) {
-		const t = left + (right - left) * (i / samples);
-		const dist = spline.getPoint(t).distanceTo(targetPoint);
+	createSplineFromKnots(knotGenerator, numKnots) {
+		const xyz = new THREE.Vector3();
+		const rgbList = [];
+		const xyzList = [];
 
-		if (dist < bestDist) {
-			bestDist = dist;
-			bestT = t;
+		const knots = knotGenerator(numKnots);
+		const spline = new THREE.CatmullRomCurve3(knots);
+		const divisions = Math.round(16 * knots.length);
+		
+		for (let i = 0; i < divisions; i++) {
+			const t = i/divisions;
+			spline.getPoint(t, xyz);
+			xyzList.push(xyz.x, xyz.y, xyz.z);
+			this.color.setHSL(t, 1.0, 0.5, THREE.SRGBColorSpace);
+			rgbList.push(this.color.r, this.color.g, this.color.b);
 		}
+
+		return { spline, rgbList, xyzList };
 	}
 
-	return bestT;
+	generateSpiralPoints(limit) {
+		const points = [];
+		for (let i = -limit; i < limit; i++) {
+			const t = i / 3;
+			points.push(new THREE.Vector3(t * Math.sin(2 * t), t, t * Math.cos(2 * t)));
+		}
+		return points;
+	}
+
+	findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
+		// Convert segment index to parameter range
+		const segmentSize = 1 / totalSegments;
+		const left = segmentIndex * segmentSize;
+		const right = (segmentIndex + 1) * segmentSize;
+
+		// Do a local search within this segment
+		let iterations = 0;
+		const maxIterations = 16;
+		let bestT = left;
+		let bestDist = spline.getPoint(left).distanceTo(targetPoint);
+
+		// Sample points within the segment to find closest
+		const samples = 10;
+		for (let i = 0; i <= samples; i++) {
+			const t = left + (right - left) * (i / samples);
+			const dist = spline.getPoint(t).distanceTo(targetPoint);
+
+			if (dist < bestDist) {
+				bestDist = dist;
+				bestT = t;
+			}
+		}
+
+		return bestT;
+	}
 }
 
-function onWindowResize() {
-	camera.aspect = window.innerWidth / window.innerHeight;
-	camera.updateProjectionMatrix();
-	renderer.setSize( window.innerWidth, window.innerHeight );
-}
-
-function onPointerMove( event ) {
-	pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-	pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-}
+// Initialize the application
+document.addEventListener('DOMContentLoaded', () => {
+	const sceneManager = new SceneManager(document.body);
+});
 
