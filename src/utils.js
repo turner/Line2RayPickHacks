@@ -1,34 +1,33 @@
-import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
+import * as THREE from 'three';
 
-function initGui(config, lineMaterial, thresholdLineMaterial, raycaster) {
-    const gui = new GUI();
+function createSplineFromKnots(knotGenerator, numKnots) {
+    const xyz = new THREE.Vector3();
+    const rgbList = [];
+    const xyzList = [];
 
-    gui.add(config, 'world units').onChange(function (val) {
-        lineMaterial.worldUnits = val;
-        lineMaterial.needsUpdate = true;
-        thresholdLineMaterial.worldUnits = val;
-        thresholdLineMaterial.needsUpdate = true;
-    });
+    const knots = knotGenerator(numKnots);
+    const spline = new THREE.CatmullRomCurve3(knots);
+    const divisions = Math.round(16 * knots.length);
+    
+    for (let i = 0; i < divisions; i++) {
+        const t = i/divisions;
+        spline.getPoint(t, xyz);
+        xyzList.push(xyz.x, xyz.y, xyz.z);
+        const color = new THREE.Color();
+        color.setHSL(t, 1.0, 0.5, THREE.SRGBColorSpace);
+        rgbList.push(color.r, color.g, color.b);
+    }
 
-    gui.add(config, 'visualize threshold').onChange(function (val) {
-        thresholdLineMaterial.visible = val;
-    });
+    return { spline, rgbList, xyzList };
+}
 
-    gui.add(config, 'width', 1, 10).onChange(function (val) {
-        lineMaterial.linewidth = val;
-        thresholdLineMaterial.linewidth = lineMaterial.linewidth + raycaster.params.Line2.threshold;
-    });
-
-    gui.add(config, 'alphaToCoverage').onChange(function (val) {
-        lineMaterial.alphaToCoverage = val;
-    });
-
-    gui.add(config, 'threshold', 0, 10).onChange(function (val) {
-        raycaster.params.Line2.threshold = val;
-        thresholdLineMaterial.linewidth = lineMaterial.linewidth + raycaster.params.Line2.threshold;
-    });
-
-    return gui;
+function generateSpiralPoints(limit) {
+    const points = [];
+    for (let i = -limit; i < limit; i++) {
+        const t = i / 3;
+        points.push(new THREE.Vector3(t * Math.sin(2 * t), t, t * Math.cos(2 * t)));
+    }
+    return points;
 } 
 
-export { initGui }
+export { createSplineFromKnots, generateSpiralPoints };

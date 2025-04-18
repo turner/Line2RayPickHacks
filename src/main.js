@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
-import { initGui } from './utils.js';
+import { initGui } from './guiService.js';
+import { createSplineFromKnots, generateSpiralPoints } from './utils.js';
 import './main.css'
 
 const BACKGROUND_COLOR = 0xCACACA;
@@ -51,7 +52,7 @@ class SceneManager {
 	}
 
 	setupScene() {
-		const { spline, rgbList, xyzList } = this.createSplineFromKnots(this.generateSpiralPoints, 48);
+		const { spline, rgbList, xyzList } = createSplineFromKnots(generateSpiralPoints, 48);
 		this.spline = spline;
 		
 		this.setupLines(xyzList, rgbList);
@@ -192,35 +193,6 @@ class SceneManager {
 	onPointerMove(event) {
 		this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
 		this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-	}
-
-	createSplineFromKnots(knotGenerator, numKnots) {
-		const xyz = new THREE.Vector3();
-		const rgbList = [];
-		const xyzList = [];
-
-		const knots = knotGenerator(numKnots);
-		const spline = new THREE.CatmullRomCurve3(knots);
-		const divisions = Math.round(16 * knots.length);
-		
-		for (let i = 0; i < divisions; i++) {
-			const t = i/divisions;
-			spline.getPoint(t, xyz);
-			xyzList.push(xyz.x, xyz.y, xyz.z);
-			this.color.setHSL(t, 1.0, 0.5, THREE.SRGBColorSpace);
-			rgbList.push(this.color.r, this.color.g, this.color.b);
-		}
-
-		return { spline, rgbList, xyzList };
-	}
-
-	generateSpiralPoints(limit) {
-		const points = [];
-		for (let i = -limit; i < limit; i++) {
-			const t = i / 3;
-			points.push(new THREE.Vector3(t * Math.sin(2 * t), t, t * Math.cos(2 * t)));
-		}
-		return points;
 	}
 
 	findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
