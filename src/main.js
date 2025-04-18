@@ -1,10 +1,10 @@
-import './main.css'
 import * as THREE from 'three';
-import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { initGui } from './utils.js';
+import './main.css'
 
 let gui
 let camera;
@@ -15,7 +15,6 @@ let thresholdLine;
 let sphereInter;
 let sphereOnLine;
 let spline;
-let knots;
 let controls;
 let pointer = new THREE.Vector2();
 let raycaster = new THREE.Raycaster();
@@ -27,14 +26,11 @@ const color = new THREE.Color();
 const BACKGROUND_COLOR = 0xCACACA;
 
 // Run initialization when the DOM is fully loaded
-document.addEventListener('DOMContentLoaded', () => {
-  initializeApp(document.getElementById('container'))
-})
+document.addEventListener('DOMContentLoaded', () => initializeApp(document.getElementById('container')))
 
-// Initialize your application here
 function initializeApp(container) {
-  
- 	raycaster.params.Line2 = {};
+
+	raycaster.params.Line2 = {};
 	raycaster.params.Line2.threshold = 0;
 
 	lineMaterial = new LineMaterial( {
@@ -61,14 +57,9 @@ function initializeApp(container) {
 
 	} );
 
-	guiParameters = {
-		'world units': lineMaterial.worldUnits,
-		'visualize threshold': thresholdLineMaterial.visible,
-		'width': lineMaterial.linewidth,
-		'alphaToCoverage': lineMaterial.alphaToCoverage,
-		'threshold': raycaster.params.Line2.threshold,
-		'translation': raycaster.params.Line2.threshold,
-	};
+
+	scene = new THREE.Scene();
+	scene.background = new THREE.Color(BACKGROUND_COLOR);
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
@@ -77,9 +68,6 @@ function initializeApp(container) {
 	renderer.setAnimationLoop( animate );
 	document.body.appendChild( renderer.domElement );
 
-	scene = new THREE.Scene();
-	scene.background = new THREE.Color(BACKGROUND_COLOR);
-
 	camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 1000 );
 	camera.position.set( 0, 0, 60 );
 
@@ -87,43 +75,42 @@ function initializeApp(container) {
 	controls.minDistance = 10;
 	controls.maxDistance = 500;
 
-	const sphereGeometry = new THREE.SphereGeometry( 0.25, 8, 4 );
 	const sphereInterMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, depthTest: false } );
 	const sphereOnLineMaterial = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false } );
 
-	sphereInter = new THREE.Mesh( sphereGeometry, sphereInterMaterial );
-	sphereOnLine = new THREE.Mesh( sphereGeometry, sphereOnLineMaterial );
+	sphereInter = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), sphereInterMaterial );
 	sphereInter.visible = false;
-	sphereOnLine.visible = false;
 	sphereInter.renderOrder = 10;
-	sphereOnLine.renderOrder = 10;
 	scene.add( sphereInter );
+
+	sphereOnLine = new THREE.Mesh( new THREE.SphereGeometry( 0.25, 8, 4 ), sphereOnLineMaterial );
+	sphereOnLine.visible = false;
+	sphereOnLine.renderOrder = 10;
 	scene.add( sphereOnLine );
 
-	// temp variables
-	const point = new THREE.Vector3();
-	const colors = [];
-	const positions = [];
+	const xyz = new THREE.Vector3();
+	const rgbList = [];
+	const xyzList = [];
 
 	// Generate spiral points
-	knots = generateSpiralPoints( 48 );
+	const knots = generateSpiralPoints( 48 );
 	spline = new THREE.CatmullRomCurve3( knots );
 	const divisions = Math.round( 16 * knots.length );
 	for (let i = 0; i < divisions; i++) {
 
 		const t = i/divisions;
-		spline.getPoint( t, point );
+		spline.getPoint( t, xyz );
 
-		positions.push( point.x, point.y, point.z );
+		xyzList.push( xyz.x, xyz.y, xyz.z );
 
 		color.setHSL( t, 1.0, 0.5, THREE.SRGBColorSpace );
-		colors.push( color.r, color.g, color.b );
+		rgbList.push( color.r, color.g, color.b );
 
 	}
 
 	const lineGeometry = new LineGeometry();
-	lineGeometry.setPositions( positions );
-	lineGeometry.setColors( colors );
+	lineGeometry.setPositions( xyzList );
+	lineGeometry.setColors( rgbList );
 
 	line = new Line2( lineGeometry, lineMaterial );
 	line.computeLineDistances();
@@ -131,9 +118,9 @@ function initializeApp(container) {
 	scene.add( line );
 
 	// Create threshold line
-	const thresholdGeometry = new LineGeometry();
-	thresholdGeometry.setPositions( positions );
-	thresholdLine = new Line2( thresholdGeometry, thresholdLineMaterial );
+	const thresholdLineGeometry = new LineGeometry();
+	thresholdLineGeometry.setPositions( xyzList );
+	thresholdLine = new Line2( thresholdLineGeometry, thresholdLineMaterial );
 	thresholdLine.computeLineDistances();
 	thresholdLine.scale.set( 1, 1, 1 );
 	scene.add( thresholdLine );
@@ -142,56 +129,16 @@ function initializeApp(container) {
 	window.addEventListener( 'resize', onWindowResize );
 	onWindowResize();
 
-	initGui();
+	guiParameters =
+		{
+			'world units': lineMaterial.worldUnits,
+			'visualize threshold': thresholdLineMaterial.visible,
+			'width': lineMaterial.linewidth,
+			'alphaToCoverage': lineMaterial.alphaToCoverage,
+			'threshold': raycaster.params.Line2.threshold
+		};
 
-}
-
-
-function initGui() {
-
-	gui = new GUI();
-
-	gui.add( guiParameters, 'world units' ).onChange( function ( val ) {
-
-		lineMaterial.worldUnits = val;
-		lineMaterial.needsUpdate = true;
-
-		thresholdLineMaterial.worldUnits = val;
-		thresholdLineMaterial.needsUpdate = true;
-
-	} );
-
-	gui.add( guiParameters, 'visualize threshold' ).onChange( function ( val ) {
-
-		thresholdLineMaterial.visible = val;
-
-	} );
-
-	gui.add( guiParameters, 'width', 1, 10 ).onChange( function ( val ) {
-
-		lineMaterial.linewidth = val;
-		thresholdLineMaterial.linewidth = lineMaterial.linewidth + raycaster.params.Line2.threshold;
-
-	} );
-
-	gui.add( guiParameters, 'alphaToCoverage' ).onChange( function ( val ) {
-
-		lineMaterial.alphaToCoverage = val;
-
-	} );
-
-	gui.add( guiParameters, 'threshold', 0, 10 ).onChange( function ( val ) {
-
-		raycaster.params.Line2.threshold = val;
-		thresholdLineMaterial.linewidth = lineMaterial.linewidth + raycaster.params.Line2.threshold;
-
-	} );
-
-	gui.add( guiParameters, 'translation', 0, 10 ).onChange( function ( val ) {
-
-		line.position.x = val;
-
-	} );
+	gui = initGui(guiParameters, lineMaterial, thresholdLineMaterial, raycaster);
 
 }
 
