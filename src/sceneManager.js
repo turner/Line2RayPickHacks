@@ -9,22 +9,22 @@ export class SceneManager {
 	constructor(container) {
 		this.scene = new THREE.Scene();
 		this.scene.background = new THREE.Color(BACKGROUND_COLOR);
-		
+
 		this.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 1000);
 		this.camera.position.set(0, 0, 60);
-		
+
 		this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 		this.setupRenderer(container);
-		
+
 		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 		this.setupControls();
-		
+
 		this.pointer = new THREE.Vector2();
 		this.raycaster = new THREE.Raycaster();
 		this.setupRaycaster();
-		
+
 		this.color = new THREE.Color();
-		
+
 		this.setupScene();
 		this.setupEventListeners();
 	}
@@ -48,9 +48,9 @@ export class SceneManager {
 	}
 
 	setupScene() {
-		const { spline, rgbList, xyzList } = createSplineFromKnots(generateSpiralPoints, 48);
+		const { spline, rgbList, xyzList } = createSplineFromKnots(generateSpiralPoints(32));
 		this.spline = spline;
-		
+
 		this.setupLines(xyzList, rgbList);
 		this.setupIntersectionSpheres();
 	}
@@ -121,7 +121,7 @@ export class SceneManager {
 		// Show feedback for threshold
 		this.sphereInter.visible = true;
 		this.sphereInter.position.copy(intersection.point);
-		
+
 		const index = intersection.faceIndex;
 		const colors = this.line.geometry.getAttribute('instanceColorStart');
 		this.color.fromBufferAttribute(colors, index);
@@ -186,4 +186,4 @@ export class SceneManager {
 
 		return bestT;
 	}
-} 
+}

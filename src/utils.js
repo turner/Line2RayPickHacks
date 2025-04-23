@@ -1,16 +1,18 @@
 import * as THREE from 'three';
 
-function createSplineFromKnots(knotGenerator, numKnots) {
+function createSplineFromKnots(knots) {
+
+    const spline = new THREE.CatmullRomCurve3(knots);
+
+    const divisions = Math.round(16 * spline.points.length);
+    // const divisions = 5;
+
     const xyz = new THREE.Vector3();
     const rgbList = [];
     const xyzList = [];
-
-    const knots = knotGenerator(numKnots);
-    const spline = new THREE.CatmullRomCurve3(knots);
-    const divisions = Math.round(16 * knots.length);
-    
-    for (let i = 0; i < divisions; i++) {
+    for (let i = 0; i < 1 + divisions; i++) {
         const t = i/divisions;
+        console.log(`t: ${t}`);
         spline.getPoint(t, xyz);
         xyzList.push(xyz.x, xyz.y, xyz.z);
         const color = new THREE.Color();
@@ -28,6 +30,6 @@ function generateSpiralPoints(limit) {
         points.push(new THREE.Vector3(t * Math.sin(2 * t), t, t * Math.cos(2 * t)));
     }
     return points;
-} 
+}
 
 export { createSplineFromKnots, generateSpiralPoints };
