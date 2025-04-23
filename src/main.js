@@ -6,7 +6,7 @@ let sceneManager;
 let gui;
 
 document.addEventListener('DOMContentLoaded', () => {
-	
+
 	sceneManager = new SceneManager(document.body);
 	gui = initGui({
 		'world units': true,
@@ -16,6 +16,3 @@ document.addEventListener('DOMContentLoaded', () => {
 		'threshold': 0
 	}, sceneManager.line.material, sceneManager.thresholdLine.material, sceneManager.raycaster);
 });
-
-export { gui };
-

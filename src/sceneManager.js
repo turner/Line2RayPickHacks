@@ -51,7 +51,7 @@ export class SceneManager {
 		const spline = new THREE.CatmullRomCurve3(generateSpiralPoints(32))
 		this.spline = spline;
 
-		this.setupLines(spline, 1);
+		this.setupLines(spline, 1/2);
 		this.setupIntersectionSpheres();
 	}
 
@@ -76,12 +76,15 @@ export class SceneManager {
 			depthTest: false,
 			visible: false
 		});
-		this.scene.add(this.thresholdLine);
+		// this.scene.add(this.thresholdLine);
 	}
 
 	setupIntersectionSpheres() {
-		this.sphereInter = this.createSphere(0xff0000);
+		// this.sphereInter = this.createSphere(0xff0000);
+		// this.scene.add(this.sphereInter);
+
 		this.sphereOnLine = this.createSphere(0x00ff00);
+		this.scene.add(this.sphereOnLine);
 	}
 
 	createSphere(color) {
@@ -91,7 +94,6 @@ export class SceneManager {
 		);
 		sphere.visible = false;
 		sphere.renderOrder = 10;
-		this.scene.add(sphere);
 		return sphere;
 	}
 
@@ -119,8 +121,8 @@ export class SceneManager {
 
 	handleIntersection(intersection) {
 		// Show feedback for threshold
-		this.sphereInter.visible = true;
-		this.sphereInter.position.copy(intersection.point);
+		// this.sphereInter.visible = true;
+		// this.sphereInter.position.copy(intersection.point);
 
 		const index = intersection.faceIndex;
 		const colors = this.line.geometry.getAttribute('instanceColorStart');
@@ -144,7 +146,7 @@ export class SceneManager {
 	}
 
 	clearIntersectionFeedback() {
-		this.sphereInter.visible = false;
+		// this.sphereInter.visible = false;
 		this.sphereOnLine.visible = false;
 		this.renderer.domElement.style.cursor = '';
 	}
