@@ -57,7 +57,7 @@ export class SceneManager {
 
 	setupLines(spline, linewidth) {
 		// Set up hero line
-		this.line = LineFactory.createLine(spline, true, {
+		this.line = LineFactory.createLine(spline, true, 16, {
 			color: 0xffffff,
 			linewidth,
 			worldUnits: true,
@@ -67,7 +67,7 @@ export class SceneManager {
 		this.scene.add(this.line);
 
 		// Setup threshold line
-		this.thresholdLine = LineFactory.createLine(spline, false, {
+		this.thresholdLine = LineFactory.createLine(spline, false, 16, {
 			color: 0xffffff,
 			linewidth,
 			worldUnits: true,

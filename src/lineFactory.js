@@ -4,11 +4,11 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import * as THREE from "three"
 
 class LineFactory {
-    static createLine(spline, doRGBList, config) {
+    static createLine(spline, doRGBList, divisionsMultiplier, lineMaterialConfig) {
 
-        const lineMaterial = new LineMaterial({ ...config });
+        const lineMaterial = new LineMaterial({ ...lineMaterialConfig });
 
-        const divisions = Math.round(16 * spline.points.length);
+        const divisions = Math.round(divisionsMultiplier * spline.points.length);
         // const divisions = 5;
 
         const xyz = new THREE.Vector3();
