@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { createSplineFromKnots, generateSpiralPoints } from './utils.js';
+import { generateSpiralPoints } from './utils.js';
 import LineFactory from './lineFactory.js'
 
 const BACKGROUND_COLOR = 0xCACACA;
@@ -48,18 +48,18 @@ export class SceneManager {
 	}
 
 	setupScene() {
-		const { spline, rgbList, xyzList } = createSplineFromKnots(generateSpiralPoints(32));
+		const spline = new THREE.CatmullRomCurve3(generateSpiralPoints(32))
 		this.spline = spline;
 
-		this.setupLines(xyzList, rgbList);
+		this.setupLines(spline, 1);
 		this.setupIntersectionSpheres();
 	}
 
-	setupLines(xyzList, rgbList) {
-		// Setup main line
-		this.line = LineFactory.createLine(xyzList, rgbList, {
+	setupLines(spline, linewidth) {
+		// Set up hero line
+		this.line = LineFactory.createLine(spline, true, {
 			color: 0xffffff,
-			linewidth: 1,
+			linewidth,
 			worldUnits: true,
 			vertexColors: true,
 			alphaToCoverage: true
@@ -67,9 +67,9 @@ export class SceneManager {
 		this.scene.add(this.line);
 
 		// Setup threshold line
-		this.thresholdLine = LineFactory.createLine(xyzList, null, {
+		this.thresholdLine = LineFactory.createLine(spline, false, {
 			color: 0xffffff,
-			linewidth: this.line.material.linewidth,
+			linewidth,
 			worldUnits: true,
 			transparent: true,
 			opacity: 0.2,
