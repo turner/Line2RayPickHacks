@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { generateSpiralPoints } from './utils.js';
 import LineFactory from './lineFactory.js'
+import RaycastService from './raycastService.js';
 
 const BACKGROUND_COLOR = 0xCACACA;
 
@@ -18,10 +19,9 @@ export class SceneManager {
 
 		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 		this.setupControls();
-
+		
 		this.pointer = new THREE.Vector2();
-		this.raycaster = new THREE.Raycaster();
-		this.setupRaycaster();
+		this.raycastService = new RaycastService();
 
 		this.color = new THREE.Color();
 
@@ -41,12 +41,7 @@ export class SceneManager {
 		this.controls.minDistance = 10;
 		this.controls.maxDistance = 500;
 	}
-
-	setupRaycaster() {
-		this.raycaster.params.Line2 = {};
-		this.raycaster.params.Line2.threshold = 0;
-	}
-
+			
 	setupScene() {
 		const spline = new THREE.CatmullRomCurve3(generateSpiralPoints(32))
 		this.spline = spline;
@@ -98,7 +93,6 @@ export class SceneManager {
 	}
 
 	setupEventListeners() {
-		document.addEventListener('pointermove', (event) => this.onPointerMove(event));
 		window.addEventListener('resize', () => this.onWindowResize());
 	}
 
@@ -107,8 +101,8 @@ export class SceneManager {
 		this.thresholdLine.position.copy(this.line.position);
 		this.thresholdLine.quaternion.copy(this.line.quaternion);
 
-		this.raycaster.setFromCamera(this.pointer, this.camera);
-		const lineIntersections = this.raycaster.intersectObject(this.line);
+		this.raycastService.updateRaycaster(this.camera);
+		const lineIntersections = this.raycastService.intersectObject(this.line);
 
 		if (lineIntersections.length > 0) {
 			this.handleIntersection(lineIntersections[0]);
@@ -155,11 +149,6 @@ export class SceneManager {
 		this.camera.aspect = window.innerWidth / window.innerHeight;
 		this.camera.updateProjectionMatrix();
 		this.renderer.setSize(window.innerWidth, window.innerHeight);
-	}
-
-	onPointerMove(event) {
-		this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-		this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
 	}
 
 	findClosestT(spline, targetPoint, segmentIndex, totalSegments, tolerance = 0.0001) {
