@@ -5,6 +5,7 @@ import LineFactory from './lineFactory.js'
 import RaycastService from './raycastService.js';
 
 const BACKGROUND_COLOR = 0xCACACA;
+const scratchColor = new THREE.Color();
 
 export class SceneManager {
 	constructor(container) {
@@ -22,8 +23,6 @@ export class SceneManager {
 		
 		this.pointer = new THREE.Vector2();
 		this.raycastService = new RaycastService();
-
-		this.color = new THREE.Color();
 
 		this.setupScene();
 		this.setupEventListeners();
@@ -101,8 +100,7 @@ export class SceneManager {
 		this.thresholdLine.position.copy(this.line.position);
 		this.thresholdLine.quaternion.copy(this.line.quaternion);
 
-		this.raycastService.updateRaycaster(this.camera);
-		const lineIntersections = this.raycastService.intersectObject(this.line);
+		const lineIntersections = this.raycastService.intersectObject(this.camera, this.line);
 
 		if (lineIntersections.length > 0) {
 			this.handleIntersection(lineIntersections[0]);
@@ -118,22 +116,17 @@ export class SceneManager {
 		// this.sphereInter.visible = true;
 		// this.sphereInter.position.copy(intersection.point);
 
-		const index = intersection.faceIndex;
-		const colors = this.line.geometry.getAttribute('instanceColorStart');
-		this.color.fromBufferAttribute(colors, index);
+		const { faceIndex, pointOnLine, object:line } = intersection;
+
+		scratchColor.fromBufferAttribute(line.geometry.getAttribute('instanceColorStart'), faceIndex);
 
 		// Show feedback for line intersection
 		this.sphereOnLine.visible = true;
-		this.sphereOnLine.position.copy(intersection.pointOnLine);
-		this.sphereOnLine.material.color.copy(this.color).offsetHSL(0.7, 0, 0);
+		this.sphereOnLine.position.copy(pointOnLine);
+		this.sphereOnLine.material.color.copy(scratchColor).offsetHSL(0.7, 0, 0);
 
 		// Calculate parametric coordinate for the spiral
-		const t = this.findClosestT(
-			this.spline,
-			intersection.pointOnLine,
-			intersection.faceIndex,
-			this.line.geometry.getAttribute('instanceStart').count
-		);
+		const t = this.findClosestT(this.spline, pointOnLine, faceIndex, line.geometry.getAttribute('instanceStart').count);
 		console.log('Segment index (t):', t);
 
 		this.renderer.domElement.style.cursor = 'crosshair';

@@ -30,8 +30,9 @@ class RayCastService {
         this.raycaster.setFromCamera(this.pointer, camera);
     }
 
-    intersectObject(object) {
-        return this.raycaster.intersectObject(object);
+    intersectObject(camera, object) {
+        this.updateRaycaster(camera)
+        return this.raycaster.intersectObject(object)
     }
 } 
 

@@ -17,7 +17,7 @@ class LineFactory {
 
         for (let i = 0; i < 1 + divisions; i++) {
             const t = i/divisions;
-            console.log(`t: ${t}`);
+            // console.log(`t: ${t}`);
             spline.getPoint(t, xyz);
             xyzList.push(xyz.x, xyz.y, xyz.z);
             const color = new THREE.Color();
