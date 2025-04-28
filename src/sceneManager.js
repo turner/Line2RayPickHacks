@@ -21,7 +21,6 @@ export class SceneManager {
 		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 		this.setupControls();
 		
-		this.pointer = new THREE.Vector2();
 		this.raycastService = new RaycastService();
 
 		this.setupScene();
