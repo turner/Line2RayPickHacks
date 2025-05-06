@@ -20,7 +20,7 @@ export class SceneManager {
 
 		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 		this.setupControls();
-		
+
 		this.raycastService = new RaycastService();
 
 		this.setupScene();
@@ -39,13 +39,13 @@ export class SceneManager {
 		this.controls.minDistance = 10;
 		this.controls.maxDistance = 500;
 	}
-			
+
 	setupScene() {
 		const spline = new THREE.CatmullRomCurve3(generateSpiralPoints(32))
 		this.spline = spline;
 
 		this.setupLines(spline, 1/2);
-		this.setupIntersectionSpheres();
+		this.setupRaycastVisualFeedback();
 	}
 
 	setupLines(spline, linewidth) {
@@ -59,30 +59,17 @@ export class SceneManager {
 		});
 		this.scene.add(this.line);
 
-		// Setup threshold line
-		this.thresholdLine = LineFactory.createLine(spline, false, 16, {
-			color: 0xffffff,
-			linewidth,
-			worldUnits: true,
-			transparent: true,
-			opacity: 0.2,
-			depthTest: false,
-			visible: false
-		});
-		// this.scene.add(this.thresholdLine);
 	}
 
-	setupIntersectionSpheres() {
-		// this.sphereInter = this.createSphere(0xff0000);
-		// this.scene.add(this.sphereInter);
+	setupRaycastVisualFeedback() {
 
-		this.sphereOnLine = this.createSphere(0x00ff00);
-		this.scene.add(this.sphereOnLine);
+		this.raycastVisualFeedback = this.createRaycastVisualFeeback(0x00ff00);
+		this.scene.add(this.raycastVisualFeedback);
 	}
 
-	createSphere(color) {
+	createRaycastVisualFeeback(color) {
 		const sphere = new THREE.Mesh(
-			new THREE.SphereGeometry(0.25, 8, 4),
+			new THREE.SphereGeometry(0.25, 32, 16),
 			new THREE.MeshBasicMaterial({ color, depthTest: false })
 		);
 		sphere.visible = false;
@@ -95,9 +82,6 @@ export class SceneManager {
 	}
 
 	animate() {
-		// Update threshold line to match main line position
-		this.thresholdLine.position.copy(this.line.position);
-		this.thresholdLine.quaternion.copy(this.line.quaternion);
 
 		const lineIntersections = this.raycastService.intersectObject(this.camera, this.line);
 
@@ -111,18 +95,15 @@ export class SceneManager {
 	}
 
 	handleIntersection(intersection) {
-		// Show feedback for threshold
-		// this.sphereInter.visible = true;
-		// this.sphereInter.position.copy(intersection.point);
 
 		const { faceIndex, pointOnLine, object:line } = intersection;
 
 		scratchColor.fromBufferAttribute(line.geometry.getAttribute('instanceColorStart'), faceIndex);
 
 		// Show feedback for line intersection
-		this.sphereOnLine.visible = true;
-		this.sphereOnLine.position.copy(pointOnLine);
-		this.sphereOnLine.material.color.copy(scratchColor).offsetHSL(0.7, 0, 0);
+		this.raycastVisualFeedback.visible = true;
+		this.raycastVisualFeedback.position.copy(pointOnLine);
+		this.raycastVisualFeedback.material.color.copy(scratchColor).offsetHSL(0.7, 0, 0);
 
 		// Calculate parametric coordinate for the spiral
 		const t = this.findClosestT(this.spline, pointOnLine, faceIndex, line.geometry.getAttribute('instanceStart').count);
@@ -132,8 +113,7 @@ export class SceneManager {
 	}
 
 	clearIntersectionFeedback() {
-		// this.sphereInter.visible = false;
-		this.sphereOnLine.visible = false;
+		this.raycastVisualFeedback.visible = false;
 		this.renderer.domElement.style.cursor = '';
 	}
 
