@@ -22,9 +22,11 @@ export class SceneManager {
 		this.setupControls();
 
 		this.raycastService = new RaycastService();
+		this.isUsingSlider = false;
 
 		this.setupScene();
 		this.setupEventListeners();
+		this.setupSlider();
 	}
 
 	setupRenderer(container) {
@@ -44,13 +46,15 @@ export class SceneManager {
 		const spline = new THREE.CatmullRomCurve3(generateSpiralPoints(32))
 		this.spline = spline;
 
-		this.setupLines(spline, 1/2);
+		this.setupLine(spline, 1 / 2);
 		this.setupRaycastVisualFeedback();
 	}
 
-	setupLines(spline, linewidth) {
+	setupLine(spline, linewidth) {
+
+		const divisonsMultiplier = 16;
 		// Set up hero line
-		this.line = LineFactory.createLine(spline, true, 16, {
+		this.line = LineFactory.createLine(spline, true, divisonsMultiplier, {
 			color: 0xffffff,
 			linewidth,
 			worldUnits: true,
@@ -69,7 +73,7 @@ export class SceneManager {
 
 	createRaycastVisualFeeback(color) {
 		const sphere = new THREE.Mesh(
-			new THREE.SphereGeometry(0.25, 32, 16),
+			new THREE.SphereGeometry(0.5, 32, 16),
 			new THREE.MeshBasicMaterial({ color, depthTest: false })
 		);
 		sphere.visible = false;
@@ -79,6 +83,29 @@ export class SceneManager {
 
 	setupEventListeners() {
 		window.addEventListener('resize', () => this.onWindowResize());
+	}
+
+	setupSlider() {
+		const slider = document.getElementById('parameter-slider');
+		if (slider) {
+			slider.addEventListener('input', (event) => {
+				const value = parseFloat(event.target.value);
+				this.handleSliderChange(value);
+			});
+		}
+	}
+
+	handleSliderChange(value) {
+		// The value will be between 0 and 1
+		console.log('Slider value:', value);
+
+		this.isUsingSlider = true;
+		this.raycastVisualFeedback.visible = true;
+		const pointOnSpline = this.spline.getPoint(value);
+		this.raycastVisualFeedback.position.copy(pointOnSpline);
+
+		// Set a default color for the sphere
+		this.raycastVisualFeedback.material.color.set(0x00ff00);
 	}
 
 	animate() {
@@ -95,26 +122,26 @@ export class SceneManager {
 	}
 
 	handleIntersection(intersection) {
+		this.isUsingSlider = false;
+		const { faceIndex, pointOnLine } = intersection;
 
-		const { faceIndex, pointOnLine, object:line } = intersection;
-
-		scratchColor.fromBufferAttribute(line.geometry.getAttribute('instanceColorStart'), faceIndex);
-
-		// Show feedback for line intersection
-		this.raycastVisualFeedback.visible = true;
-		this.raycastVisualFeedback.position.copy(pointOnLine);
-		this.raycastVisualFeedback.material.color.copy(scratchColor).offsetHSL(0.7, 0, 0);
-
-		// Calculate parametric coordinate for the spiral
-		const t = this.findClosestT(this.spline, pointOnLine, faceIndex, line.geometry.getAttribute('instanceStart').count);
+		const t = this.findClosestT(this.spline, pointOnLine, faceIndex, this.line.geometry.getAttribute('instanceStart').count);
 		console.log('Segment index (t):', t);
 
-		this.renderer.domElement.style.cursor = 'crosshair';
+		// Show visible raycast feedback
+		this.renderer.domElement.style.cursor = 'none';
+		this.raycastVisualFeedback.visible = true;
+		const pointOnSpline = this.spline.getPoint(t)
+		this.raycastVisualFeedback.position.copy(pointOnSpline);
+		scratchColor.fromBufferAttribute(this.line.geometry.getAttribute('instanceColorStart'), faceIndex);
+		this.raycastVisualFeedback.material.color.copy(scratchColor).offsetHSL(0.7, 0, 0);
 	}
 
 	clearIntersectionFeedback() {
-		this.raycastVisualFeedback.visible = false;
-		this.renderer.domElement.style.cursor = '';
+		if (!this.isUsingSlider) {
+			this.raycastVisualFeedback.visible = false;
+			this.renderer.domElement.style.cursor = '';
+		}
 	}
 
 	onWindowResize() {
